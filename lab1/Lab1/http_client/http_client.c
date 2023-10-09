@@ -17,7 +17,9 @@
 #include <sys/stat.h>
 
 char* extractFileName(char* path);
-void extractHeader(char* response, char* header);
+size_t extractHeader(char* response, char* header);
+void splitResponse(char* response, char* header, char* content);
+void pchar(char c);
 
 int main(int argc, char *argv[])
 {
@@ -82,10 +84,11 @@ int main(int argc, char *argv[])
     int bytes_received=0;
     int content_len = -1;
     int num_bytes;
-    int flag = 0;
     while(1)
     {
-        num_bytes = recv(sockfd, response, 1024-1, 0);
+        memset(response, 0, sizeof(response));
+        memset(header, 0, sizeof(header));
+        num_bytes = recv(sockfd, response, 1023, 0);
         if (num_bytes < 0) {
             fprintf(stderr, "recv() failed\n");
             exit(1);
@@ -94,10 +97,6 @@ int main(int argc, char *argv[])
             break;
         }
         response[num_bytes] = '\0';
-        // if (flag == 0){
-        //     printf("%s", response);
-        // }
-        
         if(content_len == -1)
         {
             char* content_len_loc = strstr(response, "Content-Length: ");
@@ -106,10 +105,12 @@ int main(int argc, char *argv[])
                 content_len_loc += strlen("Content-Length: ");
                 content_len = atoi(content_len_loc);
             }
-            extractHeader(response, header);
-            printf("%s", header);
-            //flag = 1;
+            size_t head_size = extractHeader(response, header);
+            printf("HEADER:\n%s\n\n", header);
+            printf("RESPONSE:\n%s\n\n", response);
+            num_bytes -= ((int)head_size +4); // +4 for \r\n\r\n bits in between header and response
         }
+
         fwrite(response, sizeof(char), num_bytes, file);
 
         bytes_received += num_bytes;
@@ -119,6 +120,7 @@ int main(int argc, char *argv[])
 
     }
     fclose(file);
+    //printf("\n");
     return 0;
 }
 
@@ -136,22 +138,58 @@ char* extractFileName(char* path) {
     return path;
 }
 
-void extractHeader(char* response, char* header) {
+size_t extractHeader(char* response, char* header) {
     char* occurrence = strstr(response, "\r\n\r\n");
-    
+    size_t headerLength;
     if (occurrence != NULL) {
         // Calculate the length of the header
-        size_t headerLength = occurrence - response;
+        headerLength = occurrence - response;
         
         // Copy the content to the header buffer
         strncpy(header, response, headerLength);
         header[headerLength] = '\0';  // Null-terminate the string
         
         // Update the response to contain everything after the occurrence
+        //printf("occurrence:\n%s\n", occurrence+4);
         strcpy(response, occurrence + 4);  // Skip the "\r\n\r\n"
+        //printf("response: %s\n", response);
     } else {
         // If no "\r\n\r\n" found, header is the same as the original response
         strcpy(header, response);
         response[0] = '\0';  // Clear the original response
+        headerLength=0;
     }
+
+    return headerLength;
+    
+}
+
+// void headerparse(char* header, int* content_len, int* status, )
+// {
+
+// }
+
+void splitResponse(char* response, char* header, char* content) {
+    // Find the position where the header ends
+    char* headerEnd = strstr(response, "\r\n\r\n");
+    // Check if headerEnd is found
+    if (headerEnd != NULL) {
+        // Calculate header length and copy it
+        int headerLength = headerEnd - response + 4;  // Include "\r\n\r\n"
+        strncpy(header, response, headerLength);
+        header[headerLength] = '\0';  // Null-terminate the header
+        
+        // Copy content (excluding the header)
+        strcpy(content, headerEnd + 4);  // Skip "\r\n\r\n"
+    }
+}
+
+void pchar(char c)
+{
+    if(c == '\r')
+        printf("\\r");
+    else if(c == '\n')
+        printf("\\n");
+    else
+        printf("%c", c);
 }
