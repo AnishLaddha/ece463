@@ -100,13 +100,13 @@ int main(int argc, char *argv[])
                 {
                     line_1[strlen(line_1)-1] = '\0';
                 }
-                printf("%s\n", line_1);
                 if(sscanf(line_1, "HTTP/%*f %d", &status_code) != 1)
                 {
                     exit(1);
                 }
                 if(status_code != 200)
                 {
+                    printf("%s\n", line_1);
                     exit(1);
                 }
                 prog_out = 1;
