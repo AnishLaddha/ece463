@@ -17,6 +17,9 @@
 #include <sys/stat.h>
 
 char* extractFileName(char* path);
+//void true_print(char* arr);
+
+
 int main(int argc, char *argv[])
 {
     if (argc != 4) {
@@ -67,17 +70,16 @@ int main(int argc, char *argv[])
   // Receive HTTP response
     char buffer[4096];
     char headers[4096];
-    FILE *fp = fopen(file_name, "wb");
-    if (!fp) {
-        perror("fopen");
-        close(sock);
-        exit(1);
-    }
+    char buf2[1024];
+    FILE *fp;
+
     int n;
     int header_done = 0;
     int header_almost_done = 0;
+    int prog_out = 0;
     long conlen = -1;
     long bytes_recv = 0;
+    int status_code;
     while(1) 
     {
         memset(buffer, 0, sizeof(buffer));
@@ -88,20 +90,55 @@ int main(int argc, char *argv[])
         }
         if(!header_done)
         {
+            //printf("%s\n", buffer);
+            if(prog_out == 0)
+            {
+                char *httpLineStart = strstr(buffer, "HTTP");
+                strncpy(buf2, buffer, 1024);
+                char *line_1 = strtok(buf2, "\n");
+                if(line_1[strlen(line_1)-1] == '\r')
+                {
+                    line_1[strlen(line_1)-1] = '\0';
+                }
+                printf("%s\n", line_1);
+                if(sscanf(line_1, "HTTP/%*f %d", &status_code) != 1)
+                {
+                    exit(1);
+                }
+                if(status_code != 200)
+                {
+                    exit(1);
+                }
+                prog_out = 1;
+            }
+
+
             char* content_length = strstr(buffer, "Content-Length: ");
             if(content_length != NULL)
             {
                 content_length+=strlen("Content-Length: ");
                 conlen = atoi(content_length);
-                printf("Content-Length: %ld\n", conlen);
+                //printf("Content-Length: %ld\n", conlen);
 
             }
+            else{
+                printf("Error: could not download the requested file (file length unknown)\n");
+                exit(1);
+            }
+
+
             char* end_of_header = strstr(buffer, "\r\n\r\n");
             if(end_of_header != NULL)
             {
                 end_of_header+=4;
                 //printf("%s\n", end_of_header);
                 int body_len = n - (end_of_header - buffer);
+                fp = fopen(file_name, "wb");
+                if (!fp) {
+                    perror("fopen");
+                    close(sock);
+                    exit(1);
+                }
                 fwrite(end_of_header, 1, body_len, fp);
                 bytes_recv += body_len;
                 header_almost_done = 1;
@@ -128,7 +165,9 @@ int main(int argc, char *argv[])
             break;
         }
     }
-
+    fclose(fp);
+    close(sock);
+    return 0;
 }
 
 char* extractFileName(char* path) {
