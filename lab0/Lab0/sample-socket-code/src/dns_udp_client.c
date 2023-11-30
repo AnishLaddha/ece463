@@ -13,7 +13,7 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 
-#define SERVPORT 53004
+#define SERVPORT 53030
 #define MAX_DNS_SIZE 1000
 
 int main(int argc, char* argv[]) {

@@ -1,0 +1,11 @@
+{
+  "files.associations": {
+    "string.h": "c",
+    "netdb.h": "c",
+    "stdio.h": "c",
+    "errno.h": "c",
+    "string_view": "c",
+    "inet.h": "c",
+    "socket.h": "c"
+  }
+}

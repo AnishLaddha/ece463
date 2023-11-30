@@ -19,8 +19,7 @@ int main(int argc, char *argv[]) {
 	int sockfd, numbytes;
 	struct sockaddr_in their_addr; /* client's address information */
 	struct hostent* he;
-	char request[1024];
-	
+    char str[1000];
 
 	if (argc != 2) {
 		fprintf(stderr,"usage: client hostname\n");
@@ -58,7 +57,6 @@ int main(int argc, char *argv[]) {
         if (strstr(str, "DONE")!=NULL) break;
         printf("%s", str);
     }
-		printf('\n');
 
 	close(sockfd);
 

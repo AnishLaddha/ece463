@@ -13,7 +13,7 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 
-#define MYPORT 53004
+#define MYPORT 53030
 #define MAXBUFLEN 1000
 #define MAX_IP_ADDR 500
 

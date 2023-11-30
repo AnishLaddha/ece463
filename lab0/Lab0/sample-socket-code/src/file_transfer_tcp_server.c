@@ -19,11 +19,14 @@
 #define BACKLOG 10
 
 int main() {
+
+
 	int sockfd, new_fd;
 	struct sockaddr_in my_addr;
 	struct sockaddr_in their_addr; /* client's address info */
 	int sin_size;
 	char dst[INET_ADDRSTRLEN];
+
 
 	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 		perror("socket");
@@ -38,7 +41,6 @@ int main() {
 	//	perror("socket");
 	//	exit(1);
 	//}
-
 	my_addr.sin_family = AF_INET;
 	my_addr.sin_port = htons(MYPORT);
 	my_addr.sin_addr.s_addr = INADDR_ANY; /* bind to all local interfaces */
