@@ -22,16 +22,16 @@
 
 #define MAXUDPPKTSIZE 65536
 #define SENDBUFSIZE 4096
-
+#define MYPORT 53030 //rmbr to remove
 
 int main(int argc, char *argv[])
 {
-    if (argc != 2) {
-        fprintf(stderr, "usage: ./db_server [DB port]\n");
-        exit(1);
-    }
+    // if (argc != 2) {
+    //     fprintf(stderr, "usage: ./db_server [DB port]\n");
+    //     exit(1);
+    // }
 
-    unsigned short MYPORT = atoi(argv[1]);
+    // unsigned short MYPORT = atoi(argv[1]);
 
 	int sockfd;
 	struct sockaddr_in my_addr;

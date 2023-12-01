@@ -16,7 +16,7 @@
 #include <arpa/inet.h>
 
 #define PORT 8030
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE 4096
 
 void printSpecialChars(const char arr[], int n) {
     for (int i = 0; (i<n & arr[i] != '\0'); i++) {
@@ -35,8 +35,28 @@ void printSpecialChars(const char arr[], int n) {
                 break;
         }
     }
+    //printf(" ");
+}
+void print_ip(const char arr[], int n) {
+    for (int i = 0; (i<n & arr[i] != '\0'); i++) {
+        switch (arr[i]) {
+            case '\n':
+                printf("\\n");
+                break;
+            case '\r':
+                printf("\\r");
+                break;
+            case '\0':
+                printf("\\0");
+                break;
+            default:
+                printf("%c", arr[i]);
+                break;
+        }
+    }
     printf(" ");
 }
+
 
 char* db_extract_str(char* input) {
     char* key = "key=";
@@ -114,7 +134,9 @@ int handle_client(int client_socket) {
         strncpy(response, buffer, newline - buffer);
         response[newline - buffer] = '\0';
         //printf("%s", response);
+        printf("\"");
         printSpecialChars(response, newline-buffer - 1);
+        printf("\" ");
         // Extracting the filepath between "GET" and "HTTP"
         char *getPos = strstr(buffer, "GET ");
 
@@ -235,7 +257,7 @@ int main()
         client_ip[INET_ADDRSTRLEN] = '\0';
         //printf
         //printf("%s \n", client_ip);
-        printSpecialChars(client_ip, INET_ADDRSTRLEN);
+        print_ip(client_ip, INET_ADDRSTRLEN);
         st = handle_client(client_socket);
 
     }
