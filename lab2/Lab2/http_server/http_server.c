@@ -249,6 +249,7 @@ int performRequest(const char request[], int client_socket, int DBPORT) {
 char* filePathGen(int length, char* filename)
 {
     char* fpgen;
+    struct stat fileinfo;
     if(filename[length-1] == '/')
     {
         fpgen = (char*)malloc((17+length)*sizeof(char));
@@ -260,10 +261,22 @@ char* filePathGen(int length, char* filename)
     }
     else
     {
-        fpgen = (char*)malloc((7+length)*sizeof(char));
+        fpgen = (char*)malloc((18+length)*sizeof(char));
         strcpy(fpgen, "Webpage");
         strcat(fpgen, filename);
-        fpgen[7+length] = '\0';
+        if(stat(fpgen, &fileinfo) == 0)
+        {
+            if(S_ISDIR(fileinfo.st_mode))
+            {
+                strcat(fpgen, "/index.html");
+            }
+        }
+        else
+        {
+            fpgen[7+length] = '\0';
+
+        }
+
     }
 
     return fpgen;
