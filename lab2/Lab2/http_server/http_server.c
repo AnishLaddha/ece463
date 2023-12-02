@@ -15,13 +15,12 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 
-#define PORT 8030
+
 #define BUFFER_SIZE 4096
-#define DBADDR "127.0.0.1" // Change this to the server's IP address
-#define DBPORT 53030
+#define DBADDR "127.0.0.1" 
 #define MAX_PACKET_SIZE 4096 // Maximum packet size
 #define TIMEOUT_SECONDS 5
-
+#define LISTEN_QUEUE 50
 
 void printSpecialChars(const char arr[], int n) {
     for (int i = 0; (i<n & arr[i] != '\0'); i++) {
@@ -102,8 +101,28 @@ char* db_extract_str(const char* input, int n) {
     return output;
 }
 
+int attack_dir(char path[], int n) {
+    char *result = NULL;
 
-int performRequest(const char request[], int client_socket) {
+    // Check if the path contains "/../"
+    result = strstr(path, "/../");
+    if (result != NULL) {
+        return 1;
+    }
+
+    // Check if the path ends with "/.."
+    if (n >= 3) {
+        result = strstr(path + n - 3, "/..");
+        if (result != NULL && result == path + n - 3) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+
+int performRequest(const char request[], int client_socket, int DBPORT) {
     int sockfd;
     struct sockaddr_in server_addr;
 
@@ -154,13 +173,18 @@ int performRequest(const char request[], int client_socket) {
     else if (select_result == 0) {
         //printf("408 Request Timeout: Server not responding within %d seconds.\n", TIMEOUT_SECONDS);
         char response[] = "HTTP/1.0 408 Request Timeout\r\n\r\n<html><body><h1>408 Request Timeout</h1></body></html>";
-        write(client_socket, response, strlen(response));
+        int err = write(client_socket, response, strlen(response));
+        if(err <0)
+        {
+            perror("write");
+            close(sockfd);
+            return -1;
+        }
         close(sockfd);
         return 3;
     } 
     else {
-        char response_header[] = "HTTP/1.0 200 OK\r\n\r\n";
-        write(client_socket, response_header, strlen(response_header));
+        int first_flag = 1;
         while (1) {
             if ((bytes_received = recvfrom(sockfd, buffer, MAX_PACKET_SIZE, 0, NULL, NULL)) == -1) {
                 perror("recvfrom");
@@ -176,13 +200,37 @@ int performRequest(const char request[], int client_socket) {
             if (strncmp(buffer, "File Not Found", 14) == 0) {
                 //printf("FILE NOT FOUND\n");
                 char response[] = "HTTP/1.0 404 Not Found\r\n\r\n <html><body><h1>404 Not Found</h1></body></html>";
-                write(client_socket, response, strlen(response));
+                int err = write(client_socket, response, strlen(response));
+                if(err < 0)
+                {
+                    perror("write");
+                    close(sockfd);
+                    return -1;
+                }
                 flag_404 = 1;
                 break;
             }
             else
             {
-                write(client_socket, buffer, bytes_received);
+                if(first_flag)
+                {
+                    char response_header[] = "HTTP/1.0 200 OK\r\n\r\n";
+                    int err = write(client_socket, response_header, strlen(response_header));
+                    if(err < 0)
+                    {
+                        perror("write");
+                        close(sockfd);
+                        return -1;
+                    }
+                    first_flag = 0;
+                }
+                int err = write(client_socket, buffer, bytes_received);
+                if(err < 0)
+                {
+                    perror("write");
+                    close(sockfd);
+                    return -1;
+                }
             }            
         }
     }
@@ -223,13 +271,18 @@ char* filePathGen(int length, char* filename)
 
 
 
-int handle_client(int client_socket) {
+int handle_client(int client_socket, int DBPORT) {
     int status=0;
     char buffer[BUFFER_SIZE];
     memset(buffer, 0, BUFFER_SIZE);
 
     // Read the request from the client
-    read(client_socket, buffer, BUFFER_SIZE - 1);
+    int err = read(client_socket, buffer, BUFFER_SIZE - 1);
+    if(err < 0)
+    {
+        perror("read");
+        return -1;
+    }
     //printf("Received request:\n %s", buffer);
 
     // Check if the request is a GET method
@@ -237,7 +290,12 @@ int handle_client(int client_socket) {
     {
         // If it's not a GET method, send a 501 response
         char response[] = "HTTP/1.1 501 Not Implemented\r\n\r\n<html><body><h1>501 Not Implemented</h1></body></html>";
-        write(client_socket, response, strlen(response));
+        int err2 = write(client_socket, response, strlen(response));
+        if(err2 < 0)
+        {
+            perror("write");
+            return -1;
+        }
     } 
     else 
     {
@@ -253,6 +311,8 @@ int handle_client(int client_socket) {
         char *getPos = strstr(buffer, "GET ");
         char *key;
         char* filepath;
+        int attack_flag = 0;
+
         if(getPos != NULL) {
             getPos += 4; // Move to the character after "GET "
             char *httpPos = strstr(getPos, " HTTP");
@@ -262,21 +322,39 @@ int handle_client(int client_socket) {
                 strncpy(fname, getPos, length);
                 fname[length] = '\0';
                 key = db_extract_str(fname, length+1);
+
+                attack_flag = attack_dir(fname, length+1);
                 filepath = filePathGen((int)length, fname);
 
                 //printf( response);
                 
             }
         }
-
-        if(key == NULL)
+        
+        if(attack_flag == 1)
+        {
+            char response[] = "HTTP/1.1 400 Bad Request\r\n\r\n<html><body><h1>400 Bad Request</h1></body></html>";
+            int err3 = write(client_socket, response, strlen(response));
+            if(err3 < 0)
+            {
+                perror("write");
+                return -1;
+            }
+            status = 4;
+        }
+        else if(key == NULL)
         {
             //printf("FILEPATH: %s\n\n\n", filepath);
             FILE *file = fopen(filepath, "rb");
             if (file == NULL) 
             {
                 char response[] = "HTTP/1.1 404 Not Found\r\n\r\n<html><body><h1>404 Not Found</h1></body></html>";
-                write(client_socket, response, strlen(response));
+                int err3 = write(client_socket, response, strlen(response));
+                if(err3 < 0)
+                {
+                    perror("write");
+                    return -1;
+                }
                 status = 1;
             } 
             else 
@@ -288,13 +366,23 @@ int handle_client(int client_socket) {
                 char response_header[60]; //= "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n";
                 sprintf(response_header, "HTTP/1.0 200 OK\r\nContent-Length: %d\r\n\r\n", sz);
                 //printf(response_header);
-                write(client_socket, response_header, strlen(response_header));
+                int err3 = write(client_socket, response_header, strlen(response_header));
+                if(err3 < 0)
+                {
+                    perror("write");
+                    return -1;
+                }
 
                 // Read and send the content of index.html
                 int size;
                 while ((size = fread(buffer, 1, BUFFER_SIZE, file)) != 0) 
                 {
-                    write(client_socket, buffer, size);
+                    int err4 = write(client_socket, buffer, size);
+                    if(err4 < 0)
+                    {
+                        perror("write");
+                        return -1;
+                    }
                 }
                 fclose(file);
                 status = 2;
@@ -302,7 +390,7 @@ int handle_client(int client_socket) {
         }
         else
         {
-            status = performRequest(key, client_socket);
+            status = performRequest(key, client_socket, DBPORT);
         }
     }
 
@@ -324,6 +412,11 @@ int handle_client(int client_socket) {
     {
         printf("%s\n", "408 Request Timeout");
     }
+    else if (status == 4)
+    {
+        printf("%s\n", "400 Bad Request");
+    }
+    
 
     // Close the client socket
     close(client_socket);
@@ -334,8 +427,18 @@ int handle_client(int client_socket) {
 
 
 
-int main() 
+int main(int argc, char *argv[]) 
 {
+    if (argc != 3) {
+        fprintf(stderr, "usage: ./http_server [server port] [DB port]\n");
+        exit(1);
+    }
+
+    int PORT = atoi(argv[1]);
+    int DBPORT = atoi(argv[2]);
+
+
+
     int server_socket, client_socket;
     struct sockaddr_in server_addr, client_addr;
     socklen_t client_addr_len = sizeof(client_addr);
@@ -360,12 +463,11 @@ int main()
     }
 
     // Listen for incoming connections
-    if (listen(server_socket, 5) < 0) {
+    if (listen(server_socket, LISTEN_QUEUE) < 0) {
         perror("Listening failed");
         exit(EXIT_FAILURE);
     }
 
-    //printf("Server listening on port %d...\n", PORT);
 
     while (1) {
         // Accept incoming connection
@@ -382,7 +484,7 @@ int main()
         //printf
         //printf("%s \n", client_ip);
         print_ip(client_ip, INET_ADDRSTRLEN);
-        st = handle_client(client_socket);
+        st = handle_client(client_socket, DBPORT);
 
     }
 
